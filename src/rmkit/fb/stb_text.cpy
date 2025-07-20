@@ -112,46 +112,58 @@ namespace stbtext:
     stbtt_GetFontVMetrics(&font, &ascent,0,0);
     baseline = (int) (ascent*scale);
 
-    unsigned char *text_buffer = (unsigned char*) calloc(image.h*image.w, 1);
     std::u32string utf32 = std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t>{}.from_bytes(text);
 
     while utf32[ch]:
        int advance,lsb,x0,y0,x1,y1;
        float x_shift = xpos - (float) floor(xpos);
        stbtt_GetCodepointHMetrics(&font, utf32[ch], &advance, &lsb);
-       stbtt_GetCodepointBitmapBox(&font, utf32[ch], scale,scale,&x0,&y0,&x1,&y1);
+       stbtt_GetCodepointBitmapBoxSubpixel(&font, utf32[ch], scale, scale, xpos - floor(xpos), 0.0f, &x0, &y0, &x1, &y1);
+       int glyph_w = x1 - x0;
+       int glyph_h = y1 - y0;
+       // Calculate top-left pixel position in the buffer (rounded xpos)
+       int x = (int) floor(xpos) + x0
+       int y = baseline + y0;
 
-       text_pos := (baseline + y0)*image.w + ((int) xpos + x0)
+       glyph_buf := (unsigned char*) calloc(glyph_w*glyph_h, 1);
 
-       // if we go above the baseline, re-adjust the starting Y position to 0
-       // to prevent crashes.
-       // TODO: do this the correct way
-       if (baseline + y0) < 0:
-         text_pos = (int) xpos + x0
+       // Render glyph bitmap into buffer
+       stbtt_MakeCodepointBitmapSubpixel(&font, glyph_buf, glyph_w, glyph_h, glyph_w, scale, scale, x_shift, 0.0f, utf32[ch]);
 
-       stbtt_MakeCodepointBitmapSubpixel(&font, &text_buffer[text_pos], x1-x0,y1-y0, image.w, scale,scale,x_shift,0, utf32[ch]);
-       // note that this stomps the old data, so where character boxes overlap (e.g. 'lj') it's wrong
-       // because this API is really for baking character bitmaps into textures. if you want to render
-       // a sequence of characters, you really need to render each bitmap to a temp font_buffer, then
-       // "alpha blend" that into the working font_buffer
+       // Copy glyph into image
+       if GRAYSCALE:
+         for (gy := 0; gy < glyph_h; gy++):
+           int by = y + gy
+           if by < 0 || by >= image.w:
+             continue
+           for (gx := 0; gx < glyph_w; gx++):
+             int bx = x + gx
+             if bx < 0 || bx >= image.w:
+               continue
+             // Invert grayscale values and blend with image
+             src := 255 - glyph_buf[gy*glyph_w+gx]
+             auto& dst = ((char*)image.buffer)[by*image.w+bx]
+             dst = src < dst ? src : dst
+       else:
+         for (gy := 0; gy < glyph_h; gy++):
+           int by = y + gy
+           if by < 0 || by >= image.w:
+             continue
+           for (gx := 0; gx < glyph_w; gx++):
+             int bx = x + gx
+             if bx < 0 || bx >= image.w:
+               continue
+             // convert to monochrome and blend with image
+             src := glyph_buf[gy*glyph_w+gx] == 0 ? 0xFF : 0
+             auto& dst = ((char*)image.buffer)[by*image.w+bx]
+             dst = src < dst ? src : dst
+       free(glyph_buf)
+
        xpos += advance * scale;
        if utf32[ch+1]:
           xpos += scale*stbtt_GetCodepointKernAdvance(&font, utf32[ch],utf32[ch+1]);
        ++ch;
 
-    if GRAYSCALE:
-      for j = 0; j < image.h; j++:
-        for i = 0; i < image.w; i++:
-          uint32_t val = text_buffer[j*image.w+i]
-          //invert grayscale values
-          ((char*)image.buffer)[j*image.w+i] = 255-val
-    else:
-      for j = 0; j < image.h; j++:
-        for i = 0; i < image.w; i++:
-          uint32_t val = text_buffer[j*image.w+i]
-          ((char*)image.buffer)[j*image.w+i] = val == 0 ? 0xFF: 0;
-
-    free(text_buffer)
     return 0;
 
   static int render_text(const char *text, image_data &image, int font_size = FONT_SIZE):
