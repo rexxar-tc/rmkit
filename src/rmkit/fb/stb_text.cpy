@@ -106,13 +106,13 @@ namespace stbtext:
     int i,j,ascent,baseline;
     int ch=0;
     float scale=1, xpos=0; // leave a little padding in case the character extends left
-
+    image.channels=1
     setup_font()
     scale = stbtt_ScaleForPixelHeight(&font, font_size);
     stbtt_GetFontVMetrics(&font, &ascent,0,0);
     baseline = (int) (ascent*scale);
 
-    unsigned char *text_buffer = (unsigned char*) calloc(image.h*font_size*image.w, 1);
+    unsigned char *text_buffer = (unsigned char*) calloc(image.h*image.w, 1);
     std::u32string utf32 = std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t>{}.from_bytes(text);
 
     while utf32[ch]:
@@ -143,18 +143,13 @@ namespace stbtext:
       for j = 0; j < image.h; j++:
         for i = 0; i < image.w; i++:
           uint32_t val = text_buffer[j*image.w+i]
-          //rescale (0,255) to (31,0) to get gray tones
-          image.buffer[j*image.w+i] = color::gray32(31 - (val >> 3));
+          //invert grayscale values
+          ((char*)image.buffer)[j*image.w+i] = 255-val
     else:
       for j = 0; j < image.h; j++:
         for i = 0; i < image.w; i++:
           uint32_t val = text_buffer[j*image.w+i]
-          image.buffer[j*image.w+i] = val == 0 ? WHITE: BLACK;
-
-    // TODO: understand why we need to trim the top line
-    // to get rid of artifacts above text
-    for i = 0; i < image.w; i++:
-      image.buffer[i] = WHITE
+          ((char*)image.buffer)[j*image.w+i] = val == 0 ? 0xFF: 0;
 
     free(text_buffer)
     return 0;
