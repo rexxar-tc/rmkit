@@ -111,7 +111,8 @@ namespace stbtext:
     scale = stbtt_ScaleForPixelHeight(&font, font_size);
     stbtt_GetFontVMetrics(&font, &ascent,0,0);
     baseline = (int) (ascent*scale);
-
+    unsigned char* glyph_buf = nullptr
+    int gbLen = 0
     std::u32string utf32 = std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t>{}.from_bytes(text);
 
     while utf32[ch]:
@@ -125,7 +126,15 @@ namespace stbtext:
        int x = (int) floor(xpos) + x0
        int y = baseline + y0;
 
-       glyph_buf := (unsigned char*) calloc(glyph_w*glyph_h, 1);
+       int ngn = glyph_w * glyph_h
+       if(!glyph_buf)
+         glyph_buf = (unsigned char*) calloc(ngn, 1)
+         gbLen = ngn
+       else if(gbLen < ngn)
+         tb := (unsigned char*)realloc(glyph_buf, ngn)
+         if(tb)
+           glyph_buf = tb
+           gbLen = ngn
 
        // Render glyph bitmap into buffer
        stbtt_MakeCodepointBitmapSubpixel(&font, glyph_buf, glyph_w, glyph_h, glyph_w, scale, scale, x_shift, 0.0f, utf32[ch]);
@@ -157,13 +166,12 @@ namespace stbtext:
              src := glyph_buf[gy*glyph_w+gx] == 0 ? 0xFF : 0
              auto& dst = ((char*)image.buffer)[by*image.w+bx]
              dst = src < dst ? src : dst
-       free(glyph_buf)
 
        xpos += advance * scale;
        if utf32[ch+1]:
           xpos += scale*stbtt_GetCodepointKernAdvance(&font, utf32[ch],utf32[ch+1]);
        ++ch;
-
+    free(glyph_buf)
     return 0;
 
   static int render_text(const char *text, image_data &image, int font_size = FONT_SIZE):
