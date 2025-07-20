@@ -311,10 +311,9 @@ namespace framebuffer:
       #endif
 
     inline void grayscale_to_rgb32(uint8_t src, char *dst):
-        uint32_t color = (src * 0x00010101);
-        dst[0] = color & 0x00FF
-        dst[1] = color & 0x0000FF
-        dst[2] = color & 0x000000FF
+        dst[0] = src
+        dst[1] = src
+        dst[2] = src
 
     // function: draw_bitmap
     // this function draws the content of image into the framebuffer
@@ -329,17 +328,20 @@ namespace framebuffer:
     def draw_bitmap(image_data &image, int o_x, int o_y, int pseudo_alpha=ALPHA_BLEND, bool alpha=true):
       remarkable_color* ptr = self.fbmem
       ptr += (o_x + o_y * self.width)
-      src := image.buffer
+      *src := (char*)image.buffer
 
       update_dirty(dirty_area, o_x, o_y)
       update_dirty(dirty_area, o_x+image.w, o_y+image.h)
 
       char *src_ptr;
       char src_val[4]
+      int stride = image.channels
+      if stride == 3
+        stride = 4
 
       for j 0 image.h:
         if o_y + j < 0:
-          src += image.w
+          src += image.w * stride
           continue
         if o_y + j >= self.height:
           break
@@ -353,10 +355,10 @@ namespace framebuffer:
           if src[i] != pseudo_alpha:
             if image.channels == 4 && alpha:
               // 4th bit is alpha -- if it's 0, skip drawing
-              if ((char*)src)[i*image.channels+3] != 0:
-                self._set_pixel(&ptr[i], i, j, pack_pixel((char *) src, i*image.channels))
+              if src[i*stride+3] != 0:
+                self._set_pixel(&ptr[i], i, j, pack_pixel(src, i*stride))
             else if image.channels >= 3:
-              self._set_pixel(&ptr[i], i, j, pack_pixel((char *) src, i*image.channels))
+              self._set_pixel(&ptr[i], i, j, pack_pixel(src, i*stride))
             else if image.channels == 1:
               grayscale_to_rgb32(src[i], src_val)
               self._set_pixel(&ptr[i], i, j, pack_pixel(src_val, 0))
@@ -364,11 +366,11 @@ namespace framebuffer:
               self._set_pixel(&ptr[i], i, j, src[i])
 
         ptr += self.width
-        src += image.w
+        src += image.w * stride
 
     void draw_text(string text, int x, int y, image_data &image, int font_size=24):
       stbtext::render_text(text, image, font_size)
-      draw_bitmap(image, x, y,WHITE)
+      draw_bitmap(image, x, y,0xFF)
 
     // function: draw_text
     // a conveniece function for drawing text to the framebuffer
@@ -381,8 +383,8 @@ namespace framebuffer:
     void draw_text(int x, y, string text, int fs=24):
       image := stbtext::get_text_size(text, fs)
 
-      image.buffer = (uint32_t*) malloc(sizeof(uint32_t) * image.w * image.h)
-      memset(image.buffer, WHITE, sizeof(uint32_t) * image.w * image.h)
+      image.buffer = (uint32_t*) malloc(image.w * image.h)
+      memset(image.buffer, 0xFF, image.w * image.h)
       self.draw_text(text, x, y, image, fs)
 
       free(image.buffer)
