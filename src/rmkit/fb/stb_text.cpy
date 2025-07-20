@@ -134,7 +134,7 @@ namespace stbtext:
        if GRAYSCALE:
          for (gy := 0; gy < glyph_h; gy++):
            int by = y + gy
-           if by < 0 || by >= image.w:
+           if by < 0 || by >= image.h:
              continue
            for (gx := 0; gx < glyph_w; gx++):
              int bx = x + gx
