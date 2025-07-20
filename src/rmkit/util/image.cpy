@@ -10,21 +10,9 @@ namespace util:
     err := stbir_resize_uint8((unsigned char*) im.buffer, im.w, im.h, 0,
                        resize_buffer, new_w, new_h, 0, num_channels)
 
-    if num_channels <= 3:
-      char* rgba_buf = (char*) malloc(sizeof(uint32_t)*resize_len)
-      j := 0
 
-      for (int i=0; i < resize_len; i++):
-        rgba_buf[j++] = resize_buffer[i]
-        rgba_buf[j++] = resize_buffer[i]
-        rgba_buf[j++] = resize_buffer[i]
-        rgba_buf[j++] = 0xFF
-
-      free(resize_buffer)
-      resize_buffer = (unsigned char*) rgba_buf
 
     free(im.buffer)
-    im.channels = 4
 
     im.w = new_w
     im.h = new_h
