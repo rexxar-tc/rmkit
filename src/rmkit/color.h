@@ -49,6 +49,15 @@ constexpr remarkable_color from_float(float n)
     return gray32(31.0 * n);
 }
 
+constexpr remarkable_color from_rgb8(rgb_color color)
+{
+    uint16_t r5 = (color.r * 31 + 127) / 255;
+    uint16_t g6 = (color.g * 63 + 127) / 255;
+    uint16_t b5 = (color.b * 31 + 127) / 255;
+
+    return (r5 << 11) | (g6 << 5) | b5;
+}
+
 constexpr rgb_color to_rgb8(remarkable_color s)
 {
   #ifndef USE_GRAYSCALE_8BIT

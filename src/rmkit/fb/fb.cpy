@@ -243,6 +243,30 @@ namespace framebuffer:
           else:
               self._set_pixel(i, j, color)
 
+    // function: do_blending
+    // blends a color with the pixel currently in the framebuffer
+    // returns the blended color
+    inline remarkable_color do_blending(remarkable_color color, int x, y, alpha):
+      target := color::to_rgb8(self._get_pixel(x, y))
+      source := color::to_rgb8(color)
+      target.r = (alpha * source.r + (255 - alpha) * target.r) / 255
+      target.g = (alpha * source.g + (255 - alpha) * target.g) / 255
+      target.b = (alpha * source.b + (255 - alpha) * target.b) / 255
+      return color::from_rgb8(target)
+
+    // function: do_blending
+    // blends a grayscale value with the pixel currently in the framebuffer
+    // returns the blended color
+    //
+    // white = 0, black = 255
+    inline remarkable_color do_blending(uint8_t gray, int x, y):
+      target := color::to_rgb8(self._get_pixel(x, y))
+      target.r = (gray) * target.r / 255
+      target.g = (gray) * target.g / 255
+      target.b = (gray) * target.b / 255
+      return color::from_rgb8(target)
+
+
     // function: draw_pixel
     // draw a pixel at the x,y position
     // of color COLOR.
@@ -275,6 +299,19 @@ namespace framebuffer:
         _draw_rect_fast(o_x, o_y+h-1, w, 1, color, dither)
         _draw_rect_fast(o_x, o_y, 1, h, color, dither)
         _draw_rect_fast(o_x+w-1, o_y, 1, h, color, dither)
+
+    inline void draw_rect_alpha(int o_x, o_y, w, h, color, alpha):
+      update_dirty(dirty_area, o_x, o_y)
+      update_dirty(dirty_area, o_x+w, o_y+h)
+
+      for l_y 0 h:
+        if l_y+o_y > h:
+          break
+        for l_x 0 w:
+          if l_x+o_x > w:
+            break
+
+          _set_pixel(self.fbmem, l_x + o_x, l_y + o_y, do_blending(color, l_x + o_x, l_y + o_y, alpha))
 
     inline void _draw_rect_fast(int o_x, o_y, w, h, color, float dither=1.0):
       self.dirty = 1
@@ -339,31 +376,29 @@ namespace framebuffer:
       if stride == 3
         stride = 4
 
-      for j 0 image.h:
-        if o_y + j < 0:
+      for l_y 0 image.h:
+        if o_y + l_y < 0:
           src += image.w * stride
           continue
-        if o_y + j >= self.height:
+        if o_y + l_y >= self.height:
           break
 
-        for i 0 image.w:
-          if o_x + i < 0:
+        for l_x 0 image.w:
+          if o_x + l_x < 0:
             continue
-          if o_x + i >= self.width:
+          if o_x + l_x >= self.width:
             break
 
-          if src[i] != pseudo_alpha:
+          if src[l_x] != pseudo_alpha:
             if image.channels == 4 && alpha:
-              // 4th bit is alpha -- if it's 0, skip drawing
-              if src[i*stride+3] != 0:
-                self._set_pixel(&ptr[i], i, j, pack_pixel(src, i*stride))
+              la := src[l_x*stride+3]
+              self._set_pixel(&ptr[l_x], l_x, l_y, do_blending(pack_pixel(src, l_x), o_x + l_x, o_y + l_y, la))
             else if image.channels >= 3:
-              self._set_pixel(&ptr[i], i, j, pack_pixel(src, i*stride))
+              self._set_pixel(&ptr[l_x], l_x, l_y, pack_pixel(src, l_x))
             else if image.channels == 1:
-              grayscale_to_rgb32(src[i], src_val)
-              self._set_pixel(&ptr[i], i, j, pack_pixel(src_val, 0))
+              self._set_pixel(&ptr[l_x], l_x, l_y, do_blending(src[l_x], o_x + l_x, o_y + l_y))
             else:
-              self._set_pixel(&ptr[i], i, j, src[i])
+              self._set_pixel(&ptr[l_x], l_x, l_y, src[l_x])
 
         ptr += self.width
         src += image.w * stride
