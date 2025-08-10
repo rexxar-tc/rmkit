@@ -305,13 +305,13 @@ namespace framebuffer:
       update_dirty(dirty_area, o_x+w, o_y+h)
 
       for l_y 0 h:
-        if l_y+o_y > h:
+        if l_y+o_y > self.height:
           break
         for l_x 0 w:
-          if l_x+o_x > w:
+          if l_x+o_x > self.width:
             break
 
-          _set_pixel(self.fbmem, l_x + o_x, l_y + o_y, do_blending(color, l_x + o_x, l_y + o_y, alpha))
+          _set_pixel(l_x + o_x, l_y + o_y, do_blending(color, l_x + o_x, l_y + o_y, alpha))
 
     inline void _draw_rect_fast(int o_x, o_y, w, h, color, float dither=1.0):
       self.dirty = 1
@@ -362,46 +362,71 @@ namespace framebuffer:
     // o_x - the x offset
     // o_y - the y offset
     // alpha - the color to treat as an alpha blend (not painted into destination)
-    def draw_bitmap(image_data &image, int o_x, int o_y, int pseudo_alpha=ALPHA_BLEND, bool alpha=true):
-      remarkable_color* ptr = self.fbmem
-      ptr += (o_x + o_y * self.width)
-      *src := (char*)image.buffer
+    def draw_bitmap(image_data &image, int o_x, int o_y, uint32_t pseudo_alpha=ALPHA_BLEND, bool alpha=true):
 
       update_dirty(dirty_area, o_x, o_y)
       update_dirty(dirty_area, o_x+image.w, o_y+image.h)
 
-      char *src_ptr;
-      char src_val[4]
-      int stride = image.channels
-      if stride == 3
-        stride = 4
-
-      for l_y 0 image.h:
-        if o_y + l_y < 0:
-          src += image.w * stride
-          continue
-        if o_y + l_y >= self.height:
-          break
-
-        for l_x 0 image.w:
-          if o_x + l_x < 0:
+      if image.channels == 4 && alpha:
+        src := image.buffer
+        for iy := 0; iy < image.h; iy++:
+          dy := iy + o_y
+          if dy < 0:
             continue
-          if o_x + l_x >= self.width:
-            break
+          if dy > self.height:
+            break;
+          for ix := 0; ix < image.w; ix++:
+            dx := ix + o_x
+            if dx < 0:
+              continue
+            if dx > self.width:
+              break
+            if src[ix] == pseudo_alpha:
+              continue
+            la := src[ix] & 0xFF
+            self._set_pixel(dx, dy, do_blending(pack_pixel((char*)src, ix * image.channels), dx, dy, la))
+          src += image.w;
+      else if image.channels >= 3:
+        for iy := 0; iy < image.h; iy++:
+          dy := iy + o_y
+          if dy < 0:
+            continue
+          if dy > self.height:
+            break;
+          for ix := 0; ix < image.w; ix++:
+            dx := ix + o_x
+            if dx < 0:
+              continue
+            if dx > self.width:
+              break
+            sptr := (char*)image.buffer
+            sptr += ix * image.channels + iy * image.channels * image.w
+            uint32_t src = 0
+            memcpy(&src, sptr, 3)
+            if src == pseudo_alpha:
+              continue
+            self._set_pixel(dx, dy, pack_pixel(sptr, 0))
+      else:
+        src := (uint8_t*)image.buffer
+        for iy := 0; iy < image.h; iy++:
+          dy := iy + o_y
+          if dy < 0:
+            continue
+          if dy > self.height:
+            break;
+          for ix := 0; ix < image.w; ix++:
+            dx := ix + o_x
+            if dx < 0:
+              continue
+            if dx > self.width:
+              break
+            if src[ix] == pseudo_alpha:
+              continue
+            self._set_pixel(dx, dy, do_blending(src[ix], dx, dy))
+          src += image.w * image.channels
 
-          if src[l_x] != pseudo_alpha:
-            if image.channels == 4 && alpha:
-              la := src[l_x*stride+3]
-              self._set_pixel(&ptr[l_x], l_x, l_y, do_blending(pack_pixel(src, l_x), o_x + l_x, o_y + l_y, la))
-            else if image.channels >= 3:
-              self._set_pixel(&ptr[l_x], l_x, l_y, pack_pixel(src, l_x))
-            else if image.channels == 1:
-              self._set_pixel(&ptr[l_x], l_x, l_y, do_blending(src[l_x], o_x + l_x, o_y + l_y))
-            else:
-              self._set_pixel(&ptr[l_x], l_x, l_y, src[l_x])
 
-        ptr += self.width
-        src += image.w * stride
+
 
     void draw_text(string text, int x, int y, image_data &image, int font_size=24):
       stbtext::render_text(text, image, font_size)
